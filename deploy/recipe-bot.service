@@ -1,0 +1,22 @@
+# systemd unit for the Raspberry Pi. Install (see README, "Deploy to a Raspberry Pi"):
+#   sed "s/YOUR_USER/$USER/g" deploy/recipe-bot.service | sudo tee /etc/systemd/system/recipe-bot.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now recipe-bot
+[Unit]
+Description=Recipe Bot (Discord)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=YOUR_USER
+WorkingDirectory=/home/YOUR_USER/RecipeBot
+# Secrets live here (chmod 600). systemd reads it as root before dropping to User=.
+EnvironmentFile=/home/YOUR_USER/RecipeBot/.env
+# ~/.local/bin is where the Claude Code installer puts `claude`.
+Environment=PATH=/home/YOUR_USER/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/YOUR_USER/RecipeBot/.venv/bin/python -m recipe_bot
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target
