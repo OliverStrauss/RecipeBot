@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import logging
+import shutil
 import time
 
 import discord
 from discord.ext import commands
 
 from .config import Config
+from .db import Database
+from .pipeline.extract import ExtractionBackend, get_backend
+from .pipeline.queue import JobQueue
 
 log = logging.getLogger(__name__)
 
@@ -17,9 +21,10 @@ discord.VoiceClient.warn_nacl = False
 if hasattr(discord.VoiceClient, "warn_dave"):
     discord.VoiceClient.warn_dave = False
 
-# Cogs loaded at startup. capture and library arrive in later milestones.
 EXTENSIONS = (
     "recipe_bot.cogs.admin",
+    "recipe_bot.cogs.capture",
+    "recipe_bot.cogs.library",
 )
 
 
@@ -39,11 +44,20 @@ class RecipeBot(commands.Bot):
             command_prefix=commands.when_mentioned,
             intents=build_intents(),
             help_command=None,
+            # Every command needs a server: libraries, limits and settings are per server.
+            allowed_contexts=discord.app_commands.AppCommandContext(guild=True),
         )
         self.config = config
         self.started_at = time.monotonic()
+        self.db = Database(config.db_path)
+        self.backend: ExtractionBackend = get_backend(config)
+        self.queue: JobQueue  # created by the capture cog, which owns the worker
 
     async def setup_hook(self) -> None:
+        await self.db.connect()
+        # Leftovers from a crash mid-job. Only job-* dirs, in case TEMP_DIR is shared.
+        for leftover in self.config.temp_dir.glob("job-*"):
+            shutil.rmtree(leftover, ignore_errors=True)
         for ext in EXTENSIONS:
             await self.load_extension(ext)
             log.info("Loaded %s", ext)
@@ -72,6 +86,10 @@ class RecipeBot(commands.Bot):
             "Online as %s (id %s) in %d server(s). Backend: %s",
             self.user, self.user.id, len(self.guilds), self.config.claude_backend,
         )
+
+    async def close(self) -> None:
+        await super().close()  # unloads cogs, which stops the queue workers
+        await self.db.close()
 
     @property
     def uptime_seconds(self) -> float:

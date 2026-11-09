@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import shutil
 import sys
 
 if sys.version_info < (3, 11):
@@ -14,8 +15,28 @@ from dotenv import load_dotenv
 
 from .bot import RecipeBot
 from .config import ConfigError, load_config, setup_logging
+from .pipeline.download import check_ytdlp_version
+from .pipeline.extract.cli_backend import CliError, check_cli
 
 log = logging.getLogger("recipe_bot")
+
+
+def startup_checks(config) -> bool:
+    """Fail fast on anything that would make every job fail. Returns False to exit."""
+    missing = [tool for tool in ("ffmpeg", "ffprobe") if shutil.which(tool) is None]
+    if missing:
+        log.error("%s not found. Install ffmpeg (macOS: `brew install ffmpeg`, Pi: `sudo apt install ffmpeg`).",
+                  " and ".join(missing))
+        return False
+    if config.claude_backend == "claude_cli":
+        try:
+            log.info("Claude Code CLI %s, signed in", check_cli(config.claude_cli_path))
+        except CliError as exc:
+            log.error("%s", exc)
+            return False
+    if warning := check_ytdlp_version():
+        log.warning(warning)
+    return True
 
 
 def main() -> int:
@@ -31,6 +52,8 @@ def main() -> int:
     log.info("Starting Recipe Bot: %r", config)  # secrets are hidden from repr
     for warning in config.warnings():
         log.warning(warning)
+    if not startup_checks(config):
+        return 1
 
     bot = RecipeBot(config)
     try:

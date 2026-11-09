@@ -9,7 +9,7 @@ from recipe_bot.config import load_config
 
 
 def make_bot(**env) -> RecipeBot:
-    return RecipeBot(load_config({"DISCORD_TOKEN": "abc", **env}))
+    return RecipeBot(load_config({"DISCORD_TOKEN": "abc", "DB_PATH": ":memory:", **env}))
 
 
 def test_message_content_intent_enabled():
@@ -25,8 +25,9 @@ async def test_setup_hook_loads_status_and_syncs_to_dev_guild(monkeypatch):
 
     await bot.setup_hook()
 
-    assert "Admin" in bot.cogs
-    assert bot.tree.get_command("status") is not None
+    assert {"Admin", "Capture", "Library"} <= set(bot.cogs)
+    for name in ("status", "setup", "recipe", "recipes"):
+        assert bot.tree.get_command(name) is not None, name
     sync.assert_awaited_once()
     guild = sync.await_args.kwargs["guild"]
     assert guild.id == 42
@@ -51,7 +52,8 @@ async def test_status_command_replies_ephemerally(monkeypatch):
     monkeypatch.setattr(bot.tree, "sync", AsyncMock(return_value=[]))
     await bot.setup_hook()
 
-    interaction = MagicMock()
+    interaction = MagicMock(guild_id=1)
+    interaction.user.id = 2
     interaction.response.send_message = AsyncMock()
     command = bot.tree.get_command("status")
     await command.callback(bot.get_cog("Admin"), interaction)
@@ -61,6 +63,8 @@ async def test_status_command_replies_ephemerally(monkeypatch):
     assert kwargs["ephemeral"] is True
     fields = {f.name: f.value for f in kwargs["embed"].fields}
     assert fields["Claude backend"] == "claude_cli (claude-sonnet-5-5)"
+    assert fields["Queue"] == "0 waiting"
+    assert fields["Your usage today"] == "0/15"
     assert "Latency" not in fields  # not connected, so no heartbeat yet
     await bot.close()
 
