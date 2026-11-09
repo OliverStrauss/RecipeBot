@@ -60,14 +60,8 @@ class Config:
             if not self.claude_code_oauth_token:
                 out.append(
                     "CLAUDE_CODE_OAUTH_TOKEN is empty. That's fine if `claude` is already "
-                    "signed in on this machine; otherwise run `claude setup-token`. "
-                    "(Not needed until milestone M3.)"
+                    "signed in on this machine; otherwise run `claude setup-token`."
                 )
-        elif self.claude_backend == "api" and not self.anthropic_api_key:
-            out.append(
-                "CLAUDE_BACKEND=api but ANTHROPIC_API_KEY is empty. "
-                "(Not needed until milestone M3.)"
-            )
         return out
 
 
@@ -115,6 +109,8 @@ def load_config(env: Mapping[str, str] | None = None) -> Config:
     backend = (get("CLAUDE_BACKEND") or "claude_cli").lower()
     if backend not in BACKENDS:
         problems.append(f"CLAUDE_BACKEND must be one of {', '.join(BACKENDS)} (got {backend!r}).")
+    elif backend == "api" and not get("ANTHROPIC_API_KEY"):
+        problems.append("CLAUDE_BACKEND=api needs ANTHROPIC_API_KEY (from console.anthropic.com).")
 
     log_level = (get("LOG_LEVEL") or "INFO").upper()
     if log_level not in LOG_LEVELS:

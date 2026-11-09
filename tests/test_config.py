@@ -30,6 +30,7 @@ def test_values_are_parsed():
     config = load_config({
         "DISCORD_TOKEN": "abc",
         "CLAUDE_BACKEND": "API",
+        "ANTHROPIC_API_KEY": "sk",
         "CLAUDE_MODEL": "claude-sonnet-5-5",
         "DEV_GUILD_ID": "123456789012345678",
         "MAX_FRAMES": "8",
@@ -87,9 +88,11 @@ def test_no_warnings_for_clean_cli_setup():
     assert config.warnings() == []
 
 
-def test_warns_when_api_backend_has_no_key():
-    config = load_config({"DISCORD_TOKEN": "abc", "CLAUDE_BACKEND": "api"})
-    assert any("ANTHROPIC_API_KEY" in w for w in config.warnings())
+def test_api_backend_requires_key():
+    with pytest.raises(ConfigError) as err:
+        load_config({"DISCORD_TOKEN": "abc", "CLAUDE_BACKEND": "api"})
+    assert any("ANTHROPIC_API_KEY" in p for p in err.value.problems)
+    assert load_config({"DISCORD_TOKEN": "abc", "CLAUDE_BACKEND": "api", "ANTHROPIC_API_KEY": "sk"}).warnings() == []
 
 
 def test_env_example_loads_and_covers_every_setting():
