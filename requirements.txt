@@ -2,6 +2,7 @@
 discord.py>=2.4
 yt-dlp                 # unpinned on purpose: platforms change, keep it current (pip install -U yt-dlp)
 faster-whisper>=1.0
+av<19                  # av 19 dropped open(metadata_errors=) that faster-whisper 1.2.1 passes; lift when faster-whisper updates
 anthropic>=0.40        # only used when CLAUDE_BACKEND=api
 pydantic>=2.6
 aiosqlite>=0.20
