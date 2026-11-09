@@ -10,8 +10,7 @@ import aiosqlite
 
 from .models import Recipe, SavedRecipe
 
-# ponytail: CREATE IF NOT EXISTS is the whole migration story. When the schema changes,
-# gate ALTERs on `PRAGMA user_version`.
+# SCHEMA is the original layout; later changes go in MIGRATIONS so existing databases get them too.
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS guilds (
   guild_id INTEGER PRIMARY KEY,
@@ -48,6 +47,11 @@ CREATE VIRTUAL TABLE IF NOT EXISTS recipe_search USING fts5(
 );
 """
 
+# Each entry runs once, in order. `PRAGMA user_version` counts how many have run. Append only.
+MIGRATIONS = [
+    "ALTER TABLE guilds ADD COLUMN cookbook_channel_id INTEGER",  # where finished recipes are posted
+]
+
 RECIPE_COLUMNS = "id, guild_id, submitter_id, source_url, platform, creator, recipe_json, created_at"
 
 
@@ -79,6 +83,10 @@ class Database:
         self.conn = await aiosqlite.connect(self.path)
         await self.conn.execute("PRAGMA journal_mode=WAL")
         await self.conn.executescript(SCHEMA)
+        (version,) = await self._one("PRAGMA user_version")
+        for version, sql in enumerate(MIGRATIONS[version:], start=version + 1):
+            await self.conn.execute(sql)
+            await self.conn.execute(f"PRAGMA user_version={version}")
         # Jobs that were queued or running when the bot stopped will never finish.
         await self.conn.execute(
             "UPDATE jobs SET status='failed', error='bot restarted', finished_at=? "
@@ -105,6 +113,10 @@ class Database:
         row = await self._one("SELECT recipe_channel_id FROM guilds WHERE guild_id=?", (guild_id,))
         return row[0] if row else None
 
+    async def cookbook_channel(self, guild_id: int) -> int | None:
+        row = await self._one("SELECT cookbook_channel_id FROM guilds WHERE guild_id=?", (guild_id,))
+        return row[0] if row else None
+
     async def daily_limit(self, guild_id: int, default: int) -> int:
         row = await self._one("SELECT daily_limit FROM guilds WHERE guild_id=?", (guild_id,))
         return row[0] if row and row[0] is not None else default
@@ -119,6 +131,9 @@ class Database:
 
     async def set_recipe_channel(self, guild_id: int, channel_id: int | None) -> None:
         await self._set_guild(guild_id, "recipe_channel_id", channel_id)
+
+    async def set_cookbook_channel(self, guild_id: int, channel_id: int | None) -> None:
+        await self._set_guild(guild_id, "cookbook_channel_id", channel_id)
 
     async def set_daily_limit(self, guild_id: int, limit: int) -> None:
         await self._set_guild(guild_id, "daily_limit", limit)

@@ -104,3 +104,25 @@ async def test_restart_fails_stale_jobs(tmp_path):
 def test_fts_query_quotes_words():
     assert fts_query("Chicken, thighs!") == '"chicken"* "thighs"*'
     assert fts_query("***") is None
+
+
+async def test_migrations_upgrade_an_old_database(tmp_path):
+    import sqlite3
+    path = tmp_path / "old.db"
+    old = sqlite3.connect(path)  # a database made before cookbook_channel_id existed
+    old.execute("CREATE TABLE guilds (guild_id INTEGER PRIMARY KEY, recipe_channel_id INTEGER, "
+                "daily_limit INTEGER, created_at TEXT)")
+    old.execute("INSERT INTO guilds VALUES (1, 555, NULL, 'x')")
+    old.commit()
+    old.close()
+
+    db = Database(path)
+    await db.connect()
+    assert await db.recipe_channel(1) == 555
+    assert await db.cookbook_channel(1) is None
+    await db.set_cookbook_channel(1, 777)
+    await db.close()
+
+    await db.connect()  # a second connect must not re-run the ALTER
+    assert await db.cookbook_channel(1) == 777
+    await db.close()

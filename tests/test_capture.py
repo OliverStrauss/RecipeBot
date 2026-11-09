@@ -24,9 +24,7 @@ URL = "https://www.tiktok.com/@chef/video/1"
 def fake_message(guild_id=1, channel_id=555, author_id=10, content=URL):
     msg = MagicMock()
     msg.guild.id, msg.channel.id, msg.author.id, msg.author.bot = guild_id, channel_id, author_id, False
-    msg.content, msg.thread = content, None
-    msg.thread_obj = MagicMock(send=AsyncMock())
-    msg.create_thread = AsyncMock(return_value=msg.thread_obj)
+    msg.content = content
     for name in ("reply", "add_reaction", "remove_reaction"):
         setattr(msg, name, AsyncMock())
     return msg
@@ -65,15 +63,14 @@ def reactions(msg):
     return [c.args[0] for c in msg.add_reaction.await_args_list]
 
 
-async def test_process_saves_and_replies_in_thread(cog):
+async def test_process_saves_and_replies(cog):
     msg = fake_message()
     job_id = await cog.bot.db.create_job(1, 10, URL, "claude_cli")
     await cog.process(job(cog, msg, job_id))
 
     saved = await cog.bot.db.find_by_url(1, URL)
     assert saved.recipe.title == "Chicken Soup" and saved.submitter_id == 10 and saved.creator == "chef"
-    msg.create_thread.assert_awaited_once_with(name="Chicken Soup")
-    embed = msg.thread_obj.send.await_args.kwargs["embed"]
+    embed = msg.reply.await_args.kwargs["embed"]
     assert f"Recipe #{saved.id}" in embed.description
     assert reactions(msg) == ["✅"]
     row = await cog.bot.db._one("SELECT status, input_tokens, output_tokens, backend FROM jobs WHERE id=?", (job_id,))
@@ -81,12 +78,30 @@ async def test_process_saves_and_replies_in_thread(cog):
     assert not list(cog.bot.config.temp_dir.iterdir())  # temp files cleaned up
 
 
-async def test_thread_failure_falls_back_to_reply(cog):
-    import discord
+async def test_cookbook_channel_gets_the_recipe(cog):
+    cookbook = MagicMock(send=AsyncMock(return_value=MagicMock(jump_url="https://discord.com/channels/1/777/9")))
+    cog.bot.get_channel = MagicMock(return_value=cookbook)
+    await cog.bot.db.set_cookbook_channel(1, 777)
     msg = fake_message()
-    msg.create_thread.side_effect = discord.HTTPException(MagicMock(status=400), "in a thread")
     await cog.process(job(cog, msg, await cog.bot.db.create_job(1, 10, URL, "x")))
+
+    cog.bot.get_channel.assert_called_once_with(777)
+    assert "Chicken Soup" in cookbook.send.await_args.kwargs["embed"].title
+    assert "https://discord.com/channels/1/777/9" in msg.reply.await_args.args[0]
+    assert "embed" not in msg.reply.await_args.kwargs
+    assert reactions(msg) == ["✅"]
+
+
+async def test_cookbook_failure_falls_back_to_reply(cog):
+    import discord
+    cookbook = MagicMock(send=AsyncMock(side_effect=discord.Forbidden(MagicMock(status=403), "no perms")))
+    cog.bot.get_channel = MagicMock(return_value=cookbook)
+    await cog.bot.db.set_cookbook_channel(1, 777)
+    msg = fake_message()
+    await cog.process(job(cog, msg, await cog.bot.db.create_job(1, 10, URL, "x")))
+
     assert "embed" in msg.reply.await_args.kwargs
+    assert reactions(msg) == ["✅"]
 
 
 async def test_pipeline_error_is_reported(cog, monkeypatch):

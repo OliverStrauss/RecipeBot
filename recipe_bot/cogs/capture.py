@@ -36,7 +36,7 @@ class Job:
     guild_id: int
     user_id: int
     link: VideoLink
-    message: discord.Message  # gets the reactions; the recipe thread hangs off it
+    message: discord.Message  # gets the reactions and replies
     status_message: discord.Message | None = None  # "N ahead of you", deleted when the job starts
 
 
@@ -127,7 +127,7 @@ class Capture(commands.Cog):
             await interaction.response.send_message(
                 f"Already saved as Recipe #{existing.id}.", embed=embed, **({"file": file} if file else {}))
             return
-        # A public message gives the job something to react on and hang a thread from.
+        # A public message gives the job something to react on and reply to.
         ahead = self.bot.queue.ahead
         await interaction.response.send_message(
             f"{QUEUED} Queued <{link.url}>. {_ahead(ahead)}" if ahead else f"{QUEUED} Working on <{link.url}>")
@@ -203,17 +203,25 @@ class Capture(commands.Cog):
             shutil.rmtree(job_dir, ignore_errors=True)
 
     async def post(self, job: Job, saved: SavedRecipe) -> None:
-        """Reply in a thread on the original message; plain reply if a thread isn't possible."""
+        """Post to the cookbook channel if one is set and reachable, else reply to the link."""
+        if await self.post_to_cookbook(job, saved):
+            return
+        embed, file = recipe_embed(saved)  # fresh File: a failed cookbook send may have consumed the last one
+        await job.message.reply(embed=embed, mention_author=False, **({"file": file} if file else {}))
+
+    async def post_to_cookbook(self, job: Job, saved: SavedRecipe) -> bool:
+        channel_id = await self.bot.db.cookbook_channel(job.guild_id)
+        channel = channel_id and self.bot.get_channel(channel_id)
+        if not channel:  # not set, or the channel was deleted
+            return False
         embed, file = recipe_embed(saved)
-        extra = {"file": file} if file else {}
-        thread = job.message.thread  # set when another link in the same message got one first
-        if thread is None:
-            with suppress(discord.HTTPException):  # no permission, or the message is already in a thread
-                thread = await job.message.create_thread(name=saved.recipe.title[:100])
-        if thread is not None:
-            await thread.send(embed=embed, **extra)
-        else:
-            await job.message.reply(embed=embed, mention_author=False, **extra)
+        try:
+            posted = await channel.send(embed=embed, **({"file": file} if file else {}))
+        except discord.HTTPException as exc:
+            log.warning("Can't post to cookbook channel %s (%s); replying to the link instead", channel_id, exc)
+            return False
+        await _quietly(job.message.reply(f"Saved as Recipe #{saved.id}: {posted.jump_url}", mention_author=False))
+        return True
 
     async def react(self, job: Job, emoji: str) -> None:
         await _quietly(job.message.remove_reaction(QUEUED, self.bot.user))

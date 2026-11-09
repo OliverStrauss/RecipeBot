@@ -1,4 +1,4 @@
-"""Admin commands: /setup channel, /setup limits, /status."""
+"""Admin commands: /setup channel, /setup cookbook, /setup limits, /status."""
 
 from __future__ import annotations
 
@@ -64,6 +64,21 @@ class Admin(commands.Cog):
         await interaction.response.send_message(
             f"Done. TikTok and Instagram links posted in {channel.mention} become recipes. "
             "Elsewhere, use `/recipe add`.", ephemeral=True)
+
+    @setup_group.command(name="cookbook", description="Post finished recipes in this channel (leave empty to turn off)")
+    @app_commands.describe(channel="Where recipes go. Leave empty to reply under each link instead.")
+    async def setup_cookbook(self, interaction: discord.Interaction,
+                             channel: discord.TextChannel | None = None) -> None:
+        await self.bot.db.set_cookbook_channel(interaction.guild_id, channel and channel.id)
+        if channel is None:
+            text = "Done. Recipes will be posted as a reply to each link."
+        else:
+            text = f"Done. Finished recipes will be posted in {channel.mention}."
+            perms = channel.permissions_for(interaction.guild.me)
+            if not (perms.view_channel and perms.send_messages and perms.embed_links and perms.attach_files):
+                text += (f"\n⚠ I can't post there yet. Give me View Channel, Send Messages, Embed Links and "
+                         f"Attach Files in {channel.mention}. Until then, recipes are posted as replies.")
+        await interaction.response.send_message(text, ephemeral=True)
 
     @setup_group.command(name="limits", description="How many videos each person can add per 24 hours")
     @app_commands.describe(daily="Videos per person per 24 hours")

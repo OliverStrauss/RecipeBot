@@ -18,7 +18,7 @@ The full design is in [PLAN.md](PLAN.md).
 | M7: Library commands | ✅ built, tested with Discord faked |
 | M8: Deploy to the Pi | 📝 service file and instructions written; not yet run on a Pi |
 
-Not yet verified in a real Discord server: the slash commands, threads and reactions. Unit tests
+Not yet verified in a real Discord server: the slash commands, replies and reactions. Unit tests
 fake the Discord API. Before relying on the bot, do a run-through with your own bot token
 (see [Try it](#4-try-it)).
 
@@ -42,7 +42,7 @@ Pi's Python don't need this.
    - Under **Privileged Gateway Intents**, turn on **Message Content Intent** and save. The bot needs it to read links posted in the recipe channel.
 3. Go to **OAuth2 > URL Generator**:
    - Scopes: `bot` and `applications.commands`
-   - Bot permissions: View Channels, Send Messages, Send Messages in Threads, Create Public Threads, Embed Links, Attach Files, Add Reactions, Read Message History, Use Application Commands
+   - Bot permissions: View Channels, Send Messages, Embed Links, Attach Files, Add Reactions, Read Message History, Use Application Commands
    - Open the generated URL and add the bot to your server.
 4. Get your test server's ID: Discord **Settings > Advanced > Developer Mode** on, then right-click the server icon > **Copy Server ID**. This is `DEV_GUILD_ID`. With it set, slash commands appear instantly in that server. Without it they sync globally, which can take up to an hour.
 
@@ -107,7 +107,7 @@ The first video downloads the whisper model (about 150 MB for `base`).
 ## 4. Try it
 
 1. In your server, a server admin runs `/setup channel #recipes`.
-2. Post a TikTok or Instagram link in `#recipes`. The bot reacts ⏳, then replies in a thread with the recipe and switches to ✅ (or ❌ with a reason).
+2. Post a TikTok or Instagram link in `#recipes`. The bot reacts ⏳, then replies with the recipe and switches to ✅ (or ❌ with a reason). To collect recipes in their own channel instead, run `/setup cookbook #cookbook`; the link then gets a short reply pointing to the posted recipe.
 3. Post the same link again. The bot replies with the saved recipe instead of processing it twice.
 4. Post three links quickly. The second and third get "N videos ahead of you".
 5. Try `/recipes search <an ingredient>`, `/recipes recent` and `/recipe delete <id>` from a second account.
@@ -117,6 +117,7 @@ The first video downloads the whisper model (about 150 MB for `base`).
 | Command | Who | What |
 |---|---|---|
 | `/setup channel <#channel>` | Manage Server | Set the auto-capture channel |
+| `/setup cookbook [#channel]` | Manage Server | Post finished recipes in this channel instead of replying under the link. Run with no channel to turn off |
 | `/setup limits <daily>` | Manage Server | Per-user cap (videos per rolling 24 hours, default 15) |
 | `/recipe add <url>` | Anyone | Process a link from any channel |
 | `/recipe show <id>` | Anyone | Show a saved recipe |
