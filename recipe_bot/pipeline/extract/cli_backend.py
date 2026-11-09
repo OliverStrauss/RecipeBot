@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import subprocess
 from pathlib import Path
 
@@ -66,6 +67,9 @@ class CliBackend:
             "--system-prompt", SYSTEM_PROMPT,
             # Read is the only tool that exists in the session: no Bash, no Edit, no web.
             "--tools", "Read", "--allowedTools", "Read",
+            # Captions are untrusted. Without this, an injected "read ../.env" works (tested);
+            # restricted mode confines Read to the job folder.
+            "--restricted",
             "--max-turns", str(MAX_TURNS),
             "--no-session-persistence",
             # Ignore the host's hooks, plugins, CLAUDE.md and MCP servers (matters on a dev Mac).
@@ -93,6 +97,7 @@ class CliBackend:
     async def _run(self, prompt: str, cwd: Path) -> Attempt:
         proc = await asyncio.create_subprocess_exec(
             *self._args(), cwd=cwd,
+            env={k: v for k, v in os.environ.items() if k != "DISCORD_TOKEN"},  # Claude never needs it
             stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
         )
         try:

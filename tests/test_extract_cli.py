@@ -56,7 +56,8 @@ def wrapper(result: str, **extra) -> bytes:
                        "usage": {"input_tokens": 10, "output_tokens": 5}, "total_cost_usd": 0.01, **extra}).encode()
 
 
-async def test_recorded_output_parses(tmp_path, fake_exec):
+async def test_recorded_output_parses(tmp_path, fake_exec, monkeypatch):
+    monkeypatch.setenv("DISCORD_TOKEN", "secret")
     calls, procs = fake_exec
     procs.append(FakeProc(RECORDED))
     frames = frames_in(tmp_path)
@@ -72,7 +73,8 @@ async def test_recorded_output_parses(tmp_path, fake_exec):
     assert kwargs["cwd"] == tmp_path
     assert args[args.index("--tools") + 1] == "Read"
     assert args[args.index("--model") + 1] == "sonnet"
-    assert "shell" not in kwargs
+    assert "--restricted" in args  # Read confined to the job folder
+    assert "shell" not in kwargs and "DISCORD_TOKEN" not in kwargs["env"]
     assert "context.md, frame_0000s.jpg, frame_0004s.jpg" in proc.input
     context = (tmp_path / "context.md").read_text()
     assert "caption" in context and "transcript" in context and "frame_0004s.jpg: at 0:04" in context
