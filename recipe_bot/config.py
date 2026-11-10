@@ -46,6 +46,8 @@ class Config:
     worker_concurrency: int = 1
     dev_guild_id: int | None = None
     log_level: str = "INFO"
+    web_url: str | None = None  # public base URL of the recipe pages; None = no web server
+    web_port: int = 8080
 
     def warnings(self) -> list[str]:
         """Non-fatal issues worth a loud log line at startup."""
@@ -129,6 +131,10 @@ def load_config(env: Mapping[str, str] | None = None) -> Config:
 
     cookies = get("IG_COOKIES_PATH")
 
+    web_url = get("WEB_URL")
+    if web_url and not web_url.startswith(("http://", "https://")):
+        problems.append(f"WEB_URL must start with http:// or https:// (got {web_url!r}).")
+
     config = Config(
         discord_token=token or "",
         claude_backend=backend,
@@ -148,6 +154,8 @@ def load_config(env: Mapping[str, str] | None = None) -> Config:
         worker_concurrency=get_int("WORKER_CONCURRENCY", 1),
         dev_guild_id=dev_guild_id,
         log_level=log_level,
+        web_url=web_url.rstrip("/") if web_url else None,
+        web_port=get_int("WEB_PORT", 8080),
     )
 
     if problems:

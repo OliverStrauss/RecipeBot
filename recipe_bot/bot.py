@@ -7,12 +7,14 @@ import shutil
 import time
 
 import discord
+from aiohttp import web
 from discord.ext import commands
 
 from .config import Config
 from .db import Database
 from .pipeline.extract import ExtractionBackend, get_backend
 from .pipeline.queue import JobQueue
+from .web import make_app
 
 log = logging.getLogger(__name__)
 
@@ -52,9 +54,15 @@ class RecipeBot(commands.Bot):
         self.db = Database(config.db_path)
         self.backend: ExtractionBackend = get_backend(config)
         self.queue: JobQueue  # created by the capture cog, which owns the worker
+        self.web: web.AppRunner | None = None
 
     async def setup_hook(self) -> None:
         await self.db.connect()
+        if self.config.web_url:
+            self.web = web.AppRunner(make_app(self.db))
+            await self.web.setup()
+            await web.TCPSite(self.web, port=self.config.web_port).start()
+            log.info("Recipe pages on port %d, linked as %s", self.config.web_port, self.config.web_url)
         # Leftovers from a crash mid-job. Only job-* dirs, in case TEMP_DIR is shared.
         for leftover in self.config.temp_dir.glob("job-*"):
             shutil.rmtree(leftover, ignore_errors=True)
@@ -89,6 +97,8 @@ class RecipeBot(commands.Bot):
 
     async def close(self) -> None:
         await super().close()  # unloads cogs, which stops the queue workers
+        if self.web:
+            await self.web.cleanup()
         await self.db.close()
 
     @property

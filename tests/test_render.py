@@ -4,7 +4,7 @@ from pydantic import ValidationError
 from recipe_bot.models import Ingredient, Recipe, SavedRecipe, Step
 from recipe_bot.pipeline.extract.base import parse_recipe
 from recipe_bot.render import (
-    DESCRIPTION_LIMIT, EMBED_LIMIT, format_ingredient, list_pages, recipe_embed, recipe_markdown,
+    DESCRIPTION_LIMIT, EMBED_LIMIT, format_ingredient, list_pages, recipe_embed, recipe_html, recipe_markdown,
 )
 
 
@@ -69,6 +69,14 @@ def test_markdown_has_everything():
     md = recipe_markdown(saved(make_recipe()))
     for part in ("## Ingredients", "## Steps", "## Tips", "Tags: noodles, quick", "@chef on TikTok", "Recipe #42"):
         assert part in md
+
+
+def test_html_page():
+    page = recipe_html(saved(make_recipe(title="Mac & <Cheese>", confidence="low", confidence_note="guessed")))
+    assert "<title>Mac &amp; &lt;Cheese&gt;</title>" in page  # escaped
+    assert "<h3>Sauce</h3>" in page and "~1/2 tsp chili flakes (est.)" in page
+    assert page.count('<input type=checkbox>') == 3 and "~3 min" in page
+    assert "⚠ Confidence: low. guessed" in page and 'href="https://www.tiktok.com/@chef/video/1"' in page
 
 
 def test_list_pages():

@@ -103,7 +103,7 @@ class Capture(commands.Cog):
                 await self.enqueue(message, message.guild.id, message.author.id, link, status)
 
     async def reply_existing(self, message: discord.Message, saved: SavedRecipe) -> None:
-        embed, file = recipe_embed(saved)
+        embed, file = recipe_embed(saved, self.bot.config.web_url)
         await _quietly(message.reply(
             f"Already saved as Recipe #{saved.id}.", embed=embed, mention_author=False,
             **({"file": file} if file else {})))
@@ -123,7 +123,7 @@ class Capture(commands.Cog):
             await interaction.response.send_message(refusal, ephemeral=True)
             return
         if existing:
-            embed, file = recipe_embed(existing)
+            embed, file = recipe_embed(existing, self.bot.config.web_url)
             await interaction.response.send_message(
                 f"Already saved as Recipe #{existing.id}.", embed=embed, **({"file": file} if file else {}))
             return
@@ -140,7 +140,7 @@ class Capture(commands.Cog):
         if saved is None:
             await interaction.response.send_message(f"No recipe #{id} in this server.", ephemeral=True)
             return
-        embed, file = recipe_embed(saved)
+        embed, file = recipe_embed(saved, self.bot.config.web_url)
         await interaction.response.send_message(embed=embed, **({"file": file} if file else {}))
 
     @recipe.command(name="delete", description="Delete a recipe (yours, or any if you can manage the server)")
@@ -206,7 +206,7 @@ class Capture(commands.Cog):
         """Post to the cookbook channel if one is set and reachable, else reply to the link."""
         if await self.post_to_cookbook(job, saved):
             return
-        embed, file = recipe_embed(saved)  # fresh File: a failed cookbook send may have consumed the last one
+        embed, file = recipe_embed(saved, self.bot.config.web_url)  # fresh File: a failed cookbook send may have consumed the last one
         await job.message.reply(embed=embed, mention_author=False, **({"file": file} if file else {}))
 
     async def post_to_cookbook(self, job: Job, saved: SavedRecipe) -> bool:
@@ -214,7 +214,7 @@ class Capture(commands.Cog):
         channel = channel_id and self.bot.get_channel(channel_id)
         if not channel:  # not set, or the channel was deleted
             return False
-        embed, file = recipe_embed(saved)
+        embed, file = recipe_embed(saved, self.bot.config.web_url)
         try:
             posted = await channel.send(embed=embed, **({"file": file} if file else {}))
         except discord.HTTPException as exc:

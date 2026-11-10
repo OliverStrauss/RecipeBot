@@ -18,7 +18,7 @@ async def library():
                              recipe=recipe(f"Garlic Dish {n}", ["garlic"], []))
     await db.save_recipe(guild_id=1, submitter_id=10, source_url="cake", platform="tiktok", creator=None,
                          recipe=recipe("Cake", ["flour"], ["dessert"]))
-    yield Library(SimpleNamespace(db=db))
+    yield Library(SimpleNamespace(db=db, config=SimpleNamespace(web_url=None)))
     await db.close()
 
 

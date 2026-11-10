@@ -130,6 +130,19 @@ The first video downloads the whisper model (about 150 MB for `base`).
 
 Server admins can change who sees the `/setup` commands under Server Settings > Integrations.
 
+### Recipe web pages (optional)
+
+Set `WEB_URL` and the bot also serves each recipe as a web page (ingredients you can tick off, numbered steps, dark mode, prints cleanly). Recipe titles in Discord then link to that page instead of the video. Pages are plain templates over the saved recipe, so they cost no Claude usage.
+
+The page server listens on `WEB_PORT` (default 8080). `WEB_URL` is the address people's phones use to reach it:
+
+- **Anywhere, stable link (recommended):** install [Tailscale](https://tailscale.com/download) on the bot machine, run `sudo tailscale funnel --bg 8080`, and set `WEB_URL` to the `https://<machine>.<tailnet>.ts.net` address it prints. The first run gives you a link to turn Funnel on for your account.
+- **Home Wi-Fi only:** `WEB_URL=http://raspberrypi.local:8080` (use your machine's hostname). Links won't open on mobile data.
+
+Anyone with a page link can open it, and recipe numbers are guessable, so treat pages as public.
+
+To save pages as files instead (no server), run `python -m recipe_bot.export [id ...]`. They land in `data/html/`.
+
 Recipes that don't fit in one Discord message come as a short embed plus the full recipe as a `.md` file. Amounts the video didn't state show as `~1 tsp salt (est.)`. A ⚠ line appears when Claude wasn't confident, for example when the recipe was gated behind "comment RECIPE".
 
 ## When downloads break

@@ -89,7 +89,7 @@ class Library(commands.Cog):
             text = f"No recipes tagged “{tag}” yet." if tag else "No recipes saved in this server yet."
             await interaction.response.send_message(text, ephemeral=True)
             return
-        embed, file = recipe_embed(saved)
+        embed, file = recipe_embed(saved, self.bot.config.web_url)
         await interaction.response.send_message(
             "How about this one?", embed=embed, **({"file": file} if file else {}))
 
